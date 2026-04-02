@@ -9,10 +9,20 @@ from datetime import date
 # ---------------- CONFIG ----------------
 st.set_page_config(page_title="RainCast AI 🌧", layout="wide")
 
+# ---------------- STYLE ----------------
+st.markdown("""
+<style>
+.stButton>button {
+    border-radius: 10px;
+    height: 3em;
+    width: 100%;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ---------------- LOAD ----------------
 model = joblib.load("rain_model.pkl")
 
-# FIXED CSV PATH (for deployment)
 file_path = os.path.join(os.path.dirname(__file__), "weatherAUS.csv")
 df = pd.read_csv(file_path)
 
@@ -49,7 +59,7 @@ st.caption("AI Powered Rain Prediction System")
 tab1, tab2, tab3 = st.tabs(["🌦 Prediction", "📊 EDA", "📂 Bulk Scanner"])
 
 # =========================================================
-# 🌦 TAB 1: SMART PREDICTION
+# 🌦 TAB 1: PREDICTION
 # =========================================================
 with tab1:
 
@@ -58,14 +68,13 @@ with tab1:
     col1, col2 = st.columns(2)
 
     with col1:
-        city = st.text_input("📍 Enter City", "Surat")
+        city = st.text_input("📍 Enter City", "Ahmedabad")
 
     with col2:
         selected_date = st.date_input("📅 Select Date")
 
     weather_data = get_weather(city)
 
-    # AUTO DATA
     if selected_date == date.today() and weather_data:
         st.success("✅ Using Live Weather Data")
 
@@ -86,7 +95,6 @@ with tab1:
         cloud = int(df["Cloud3pm"].mean())
         rain_today_val = 0
 
-    # SHOW VALUES
     st.info(f"""
     🌡 Temp: {temp} °C  
     💧 Humidity: {humidity}%  
@@ -96,7 +104,6 @@ with tab1:
     🌧 Rain Today: {"Yes" if rain_today_val else "No"}
     """)
 
-    # PREDICT
     if st.button("🚀 Predict Rain"):
 
         input_df = pd.DataFrame({
@@ -117,7 +124,7 @@ with tab1:
             st.success(f"☀ No Rain ({prob:.2f}%)")
 
 # =========================================================
-# 📊 TAB 2: EDA (FIXED)
+# 📊 TAB 2: EDA
 # =========================================================
 with tab2:
 
@@ -137,7 +144,7 @@ with tab2:
         ax.scatter(df['Humidity3pm'], df['RainTomorrow'].map({"Yes":1,"No":0}))
         st.pyplot(fig)
 
-    # ✅ FIXED FEATURE IMPORTANCE
+    # Feature Importance FIXED
     st.write("### Feature Importance")
 
     features = [
@@ -160,41 +167,103 @@ with tab2:
     st.pyplot(fig)
 
 # =========================================================
-# 📂 BULK SCANNER
+# 📂 TAB 3: BULK SCANNER (PRO LEVEL)
 # =========================================================
 with tab3:
 
-    st.subheader("Bulk Prediction")
+    st.subheader("🔍 Bulk Rain Prediction Scanner")
 
-    file = st.file_uploader("Upload CSV", type=["csv"])
+    # ---------------- SAMPLE DOWNLOAD ----------------
+    st.markdown("### 1️⃣ Download Sample Templates")
+
+    sample_data = pd.DataFrame({
+        "Humidity3pm":[70,60],
+        "Pressure3pm":[1005,1012],
+        "Temp3pm":[28,32],
+        "WindSpeed3pm":[15,10],
+        "RainToday":[1,0],
+        "Cloud3pm":[7,3]
+    })
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        csv = sample_data.to_csv(index=False).encode()
+        st.download_button("📄 CSV Sample", csv, "sample.csv")
+
+    with col2:
+        excel_file = "sample.xlsx"
+        sample_data.to_excel(excel_file, index=False)
+        with open(excel_file, "rb") as f:
+            st.download_button("📊 Excel Sample", f, "sample.xlsx")
+
+    with col3:
+        json_data = sample_data.to_json(orient="records")
+        st.download_button("🧾 JSON Sample", json_data, "sample.json")
+
+    st.markdown("---")
+
+    # ---------------- UPLOAD ----------------
+    st.markdown("### 2️⃣ Upload File to Scan")
+
+    file = st.file_uploader(
+        "Upload CSV / Excel / JSON",
+        type=["csv", "xlsx", "json"]
+    )
 
     if file:
-        data = pd.read_csv(file)
-        st.write("📊 Data Preview")
-        st.dataframe(data)
 
         try:
-            data["RainToday"] = data["RainToday"].map({"Yes": 1, "No": 0})
+            # File type detection
+            if file.name.endswith(".csv"):
+                data = pd.read_csv(file)
 
-            input_data = data[[
+            elif file.name.endswith(".xlsx"):
+                data = pd.read_excel(file)
+
+            elif file.name.endswith(".json"):
+                data = pd.read_json(file)
+
+            else:
+                st.error("Unsupported file type")
+                st.stop()
+
+            st.success("✅ File Uploaded")
+            st.dataframe(data)
+
+            # Preprocess
+            if "RainToday" in data.columns:
+                data["RainToday"] = data["RainToday"].replace({"Yes":1,"No":0})
+
+            required_cols = [
                 "Humidity3pm",
                 "Pressure3pm",
                 "Temp3pm",
                 "WindSpeed3pm",
                 "RainToday",
                 "Cloud3pm"
-            ]]
+            ]
 
+            if not all(col in data.columns for col in required_cols):
+                st.error("❌ Missing required columns")
+                st.stop()
+
+            input_data = data[required_cols]
             input_data = input_data.fillna(input_data.mean())
 
+            # Predict
             preds = model.predict(input_data)
-            data["Prediction"] = preds
+            probs = model.predict_proba(input_data)[:,1]
 
-            st.success("✅ Prediction Done")
+            data["Prediction"] = preds
+            data["Rain Probability (%)"] = (probs * 100).round(2)
+
+            st.success("🎯 Prediction Completed")
             st.dataframe(data)
 
-            csv = data.to_csv(index=False).encode()
-            st.download_button("⬇ Download Results", csv, "result.csv")
+            # Download
+            result_csv = data.to_csv(index=False).encode()
+            st.download_button("⬇ Download Results", result_csv, "results.csv")
 
         except Exception as e:
             st.error(f"❌ Error: {e}")
