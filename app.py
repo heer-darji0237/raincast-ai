@@ -3,6 +3,7 @@ import joblib
 import pandas as pd
 import requests
 import matplotlib.pyplot as plt
+import os
 from datetime import date
 
 # ---------------- CONFIG ----------------
@@ -10,7 +11,10 @@ st.set_page_config(page_title="RainCast AI 🌧", layout="wide")
 
 # ---------------- LOAD ----------------
 model = joblib.load("rain_model.pkl")
-df = pd.read_csv("weatherAUS.csv")
+
+# FIXED CSV PATH (for deployment)
+file_path = os.path.join(os.path.dirname(__file__), "weatherAUS.csv")
+df = pd.read_csv(file_path)
 
 API_KEY = "444e60e9c0c7d2c4d51287978c19eb07"
 
@@ -29,8 +33,8 @@ def get_weather(city):
             "temp": data["main"]["temp"],
             "humidity": data["main"]["humidity"],
             "pressure": data["main"]["pressure"],
-            "wind": data["wind"]["speed"],
-            "cloud": int(data["clouds"]["all"] / 10),  # convert 0-100 → 0-9
+            "wind": int(data["wind"]["speed"]),
+            "cloud": int(data["clouds"]["all"] / 10),
             "rain_today": 1 if "rain" in data else 0
         }
 
@@ -59,21 +63,21 @@ with tab1:
     with col2:
         selected_date = st.date_input("📅 Select Date")
 
-    # ---------------- AUTO DATA GENERATION ----------------
     weather_data = get_weather(city)
 
+    # AUTO DATA
     if selected_date == date.today() and weather_data:
         st.success("✅ Using Live Weather Data")
 
         temp = weather_data["temp"]
         humidity = weather_data["humidity"]
         pressure = weather_data["pressure"]
-        wind = int(weather_data["wind"])
+        wind = weather_data["wind"]
         cloud = weather_data["cloud"]
         rain_today_val = weather_data["rain_today"]
 
     else:
-        st.warning("⚠️ Using Smart Dataset Estimation")
+        st.warning("⚠️ Using Dataset Estimation")
 
         temp = int(df["Temp3pm"].mean())
         humidity = int(df["Humidity3pm"].mean())
@@ -82,7 +86,7 @@ with tab1:
         cloud = int(df["Cloud3pm"].mean())
         rain_today_val = 0
 
-    # ---------------- SHOW AUTO VALUES ----------------
+    # SHOW VALUES
     st.info(f"""
     🌡 Temp: {temp} °C  
     💧 Humidity: {humidity}%  
@@ -92,7 +96,7 @@ with tab1:
     🌧 Rain Today: {"Yes" if rain_today_val else "No"}
     """)
 
-    # ---------------- PREDICTION ----------------
+    # PREDICT
     if st.button("🚀 Predict Rain"):
 
         input_df = pd.DataFrame({
@@ -113,7 +117,7 @@ with tab1:
             st.success(f"☀ No Rain ({prob:.2f}%)")
 
 # =========================================================
-# 📊 TAB 2: EDA
+# 📊 TAB 2: EDA (FIXED)
 # =========================================================
 with tab2:
 
@@ -133,13 +137,26 @@ with tab2:
         ax.scatter(df['Humidity3pm'], df['RainTomorrow'].map({"Yes":1,"No":0}))
         st.pyplot(fig)
 
+    # ✅ FIXED FEATURE IMPORTANCE
     st.write("### Feature Importance")
+
+    features = [
+        "Humidity3pm",
+        "Pressure3pm",
+        "Temp3pm",
+        "WindSpeed3pm",
+        "RainToday",
+        "Cloud3pm"
+    ]
+
     importances = model.feature_importances_
+
+    min_len = min(len(features), len(importances))
+    features = features[:min_len]
+    importances = importances[:min_len]
+
     fig, ax = plt.subplots()
-    ax.barh(
-        ["Humidity","Pressure","Temp","Wind","RainToday","Cloud"],
-        importances
-    )
+    ax.barh(features, importances)
     st.pyplot(fig)
 
 # =========================================================
