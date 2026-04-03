@@ -30,7 +30,7 @@ st.markdown("""
 model = joblib.load("rain_model.pkl")
 df = pd.read_csv("weatherAUS.csv")
 
-API_KEY = "444e60e9c0c7d2c4d51287978c19eb0"
+API_KEY = "444e60e9c0c7d2c4d51287978c19eb07"
 
 # ---------------- API ----------------
 def get_weather(city):
@@ -71,40 +71,69 @@ elif menu == "Prediction":
 
     st.markdown('<div class="big-card"><h1>🌧 Smart Rain Prediction</h1></div>', unsafe_allow_html=True)
 
-    city = st.text_input("📍 City", "Ahmedabad")
-    selected_date = st.date_input("📅 Date")
+    col1, col2 = st.columns(2)
 
-    weather = get_weather(city)
+    with col1:
+        city = st.text_input("📍 Enter City", "Ahmedabad")
 
+    with col2:
+        selected_date = st.date_input("📅 Select Date")
+
+    # -------- FETCH WEATHER AUTOMATICALLY --------
+    weather = None
+    if city:
+        weather = get_weather(city.strip())
+
+    # -------- DEFAULT VALUES --------
     if weather:
-        temp = weather["temp"]
-        humidity = weather["humidity"]
-        pressure = weather["pressure"]
-        wind = weather["wind"]
-        cloud = weather["cloud"]
-        rain_today = weather["rain_today"]
+        temp_default = int(weather["temp"])
+        humidity_default = int(weather["humidity"])
+        pressure_default = int(weather["pressure"])
+        wind_default = int(weather["wind"])
+        cloud_default = int(weather["cloud"])
+        rain_today_default = int(weather["rain_today"])
+
+        st.success("✅ Live weather data loaded")
+
     else:
-        temp = int(df["Temp3pm"].mean())
-        humidity = int(df["Humidity3pm"].mean())
-        pressure = int(df["Pressure3pm"].mean())
-        wind = int(df["WindSpeed3pm"].mean())
-        cloud = int(df["Cloud3pm"].mean())
-        rain_today = 0
+        temp_default = int(df["Temp3pm"].mean())
+        humidity_default = int(df["Humidity3pm"].mean())
+        pressure_default = int(df["Pressure3pm"].mean())
+        wind_default = int(df["WindSpeed3pm"].mean())
+        cloud_default = int(df["Cloud3pm"].mean())
+        rain_today_default = 0
+
+        if city != "":
+            st.error("❌ City not found or API issue")
+
+    # -------- MANUAL EDIT --------
+    st.markdown("### ⚙ Adjust Values (Optional)")
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        temp = st.slider("🌡 Temp", 0, 60, int(temp))
-        humidity = st.slider("💧 Humidity", 0, 100, int(humidity))
+        temp = st.slider("🌡 Temperature", 0, 60, temp_default)
+        humidity = st.slider("💧 Humidity", 0, 100, humidity_default)
 
     with col2:
-        pressure = st.slider("🌬 Pressure", 900, 1100, int(pressure))
-        wind = st.slider("💨 Wind", 0, 150, int(wind))
+        pressure = st.slider("🌬 Pressure", 900, 1100, pressure_default)
+        wind = st.slider("💨 Wind Speed", 0, 150, wind_default)
 
     with col3:
-        cloud = st.slider("☁ Cloud", 0, 10, int(cloud))
-        rain_today = st.selectbox("Rain Today", [0,1], index=rain_today)
+        cloud = st.slider("☁ Cloud", 0, 10, cloud_default)
+        rain_today = st.selectbox("🌧 Rain Today", [0,1], index=rain_today_default)
 
+    # -------- DISPLAY --------
+    st.info(f"""
+    🌡 Temp: {temp} °C  
+    💧 Humidity: {humidity}%  
+    🌬 Pressure: {pressure} hPa  
+    💨 Wind: {wind} km/h  
+    ☁ Cloud: {cloud}  
+    🌧 Rain Today: {"Yes" if rain_today else "No"}
+    """)
+
+    # -------- PREDICT --------
     if st.button("🚀 Predict Rain"):
 
         input_df = pd.DataFrame({
