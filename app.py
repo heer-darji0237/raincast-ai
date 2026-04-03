@@ -6,103 +6,104 @@ import matplotlib.pyplot as plt
 import os
 from datetime import date
 
-# ---------------- CONFIG ----------------
 st.set_page_config(page_title="RainCast AI 🌧", layout="wide")
 
 # ---------------- STYLE ----------------
 st.markdown("""
 <style>
-.stButton>button {
-    border-radius: 10px;
-    height: 3em;
-    width: 100%;
+.big-card {
+    padding: 30px;
+    border-radius: 20px;
+    background: linear-gradient(90deg, #6a11cb, #2575fc);
+    text-align: center;
+    color: white;
+}
+.card {
+    background:#f5f5f5;
+    padding:20px;
+    border-radius:15px;
 }
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------- LOAD ----------------
 model = joblib.load("rain_model.pkl")
+df = pd.read_csv("weatherAUS.csv")
 
-file_path = os.path.join(os.path.dirname(__file__), "weatherAUS.csv")
-df = pd.read_csv(file_path)
+API_KEY = "444e60e9c0c7d2c4d51287978c19eb0"
 
-API_KEY = "444e60e9c0c7d2c4d51287978c19eb07"
-
-# ---------------- API FUNCTION ----------------
+# ---------------- API ----------------
 def get_weather(city):
-    url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={API_KEY}&units=metric"
-    
     try:
-        res = requests.get(url)
-        data = res.json()
-
-        if res.status_code != 200:
-            return None
-
+        url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={API_KEY}&units=metric"
+        data = requests.get(url).json()
         return {
             "temp": data["main"]["temp"],
             "humidity": data["main"]["humidity"],
             "pressure": data["main"]["pressure"],
             "wind": int(data["wind"]["speed"]),
-            "cloud": int(data["clouds"]["all"] / 10),
+            "cloud": int(data["clouds"]["all"]/10),
             "rain_today": 1 if "rain" in data else 0
         }
-
     except:
         return None
 
-# ---------------- HEADER ----------------
-st.title("🌧 RainCast AI")
-st.caption("AI Powered Rain Prediction System")
-
-# ---------------- TABS ----------------
-tab1, tab2, tab3 = st.tabs(["🌦 Prediction", "📊 EDA", "📂 Bulk Scanner"])
+# ---------------- SIDEBAR ----------------
+menu = st.sidebar.radio("Navigation", ["Dashboard", "Prediction", "EDA", "Bulk Scanner", "About"])
 
 # =========================================================
-# 🌦 TAB 1: PREDICTION
+# 📊 DASHBOARD
 # =========================================================
-with tab1:
+if menu == "Dashboard":
 
-    st.subheader("Smart Rain Prediction")
+    st.markdown('<div class="big-card"><h1>🌧 RainCast AI</h1><p>AI-Based Rain Prediction</p></div>', unsafe_allow_html=True)
 
-    col1, col2 = st.columns(2)
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Total Records", len(df))
+    c2.metric("Avg Temp", f"{int(df['Temp3pm'].mean())}°C")
+    c3.metric("Avg Humidity", f"{int(df['Humidity3pm'].mean())}%")
+    c4.metric("Avg Pressure", f"{int(df['Pressure3pm'].mean())}")
 
-    with col1:
-        city = st.text_input("📍 Enter City", "Ahmedabad")
+# =========================================================
+# 🌦 PREDICTION
+# =========================================================
+elif menu == "Prediction":
 
-    with col2:
-        selected_date = st.date_input("📅 Select Date")
+    st.markdown('<div class="big-card"><h1>🌧 Smart Rain Prediction</h1></div>', unsafe_allow_html=True)
 
-    weather_data = get_weather(city)
+    city = st.text_input("📍 City", "Ahmedabad")
+    selected_date = st.date_input("📅 Date")
 
-    if selected_date == date.today() and weather_data:
-        st.success("✅ Using Live Weather Data")
+    weather = get_weather(city)
 
-        temp = weather_data["temp"]
-        humidity = weather_data["humidity"]
-        pressure = weather_data["pressure"]
-        wind = weather_data["wind"]
-        cloud = weather_data["cloud"]
-        rain_today_val = weather_data["rain_today"]
-
+    if weather:
+        temp = weather["temp"]
+        humidity = weather["humidity"]
+        pressure = weather["pressure"]
+        wind = weather["wind"]
+        cloud = weather["cloud"]
+        rain_today = weather["rain_today"]
     else:
-        st.warning("⚠️ Using Dataset Estimation")
-
         temp = int(df["Temp3pm"].mean())
         humidity = int(df["Humidity3pm"].mean())
         pressure = int(df["Pressure3pm"].mean())
         wind = int(df["WindSpeed3pm"].mean())
         cloud = int(df["Cloud3pm"].mean())
-        rain_today_val = 0
+        rain_today = 0
 
-    st.info(f"""
-    🌡 Temp: {temp} °C  
-    💧 Humidity: {humidity}%  
-    🌬 Pressure: {pressure} hPa  
-    🌬 Wind: {wind} km/h  
-    ☁ Cloud: {cloud}  
-    🌧 Rain Today: {"Yes" if rain_today_val else "No"}
-    """)
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        temp = st.slider("🌡 Temp", 0, 60, int(temp))
+        humidity = st.slider("💧 Humidity", 0, 100, int(humidity))
+
+    with col2:
+        pressure = st.slider("🌬 Pressure", 900, 1100, int(pressure))
+        wind = st.slider("💨 Wind", 0, 150, int(wind))
+
+    with col3:
+        cloud = st.slider("☁ Cloud", 0, 10, int(cloud))
+        rain_today = st.selectbox("Rain Today", [0,1], index=rain_today)
 
     if st.button("🚀 Predict Rain"):
 
@@ -111,7 +112,7 @@ with tab1:
             "Pressure3pm":[pressure],
             "Temp3pm":[temp],
             "WindSpeed3pm":[wind],
-            "RainToday":[rain_today_val],
+            "RainToday":[rain_today],
             "Cloud3pm":[cloud]
         })
 
@@ -124,150 +125,132 @@ with tab1:
             st.success(f"☀ No Rain ({prob:.2f}%)")
 
 # =========================================================
-# 📊 TAB 2: EDA
+# 📊 EDA (NOW 4 GRAPHS)
 # =========================================================
-with tab2:
+elif menu == "EDA":
 
-    st.subheader("Exploratory Data Analysis")
+    st.markdown('<div class="big-card"><h1>📊 Exploratory Data Analysis</h1></div>', unsafe_allow_html=True)
+
+    col1, col2 = st.columns(2)
+
+    # 1️⃣ Temp Distribution
+    with col1:
+        st.subheader("🌡 Temp Distribution")
+        fig, ax = plt.subplots()
+        df["Temp3pm"].hist(ax=ax)
+        st.pyplot(fig)
+
+    # 2️⃣ Humidity vs Rain
+    with col2:
+        st.subheader("💧 Humidity vs Rain")
+        fig, ax = plt.subplots()
+        ax.scatter(df["Humidity3pm"], df["RainTomorrow"].map({"Yes":1,"No":0}))
+        st.pyplot(fig)
+
+    col3, col4 = st.columns(2)
+
+    # 3️⃣ Pressure vs Temp
+    with col3:
+        st.subheader("🌬 Pressure vs Temp")
+        fig, ax = plt.subplots()
+        ax.scatter(df["Pressure3pm"], df["Temp3pm"])
+        st.pyplot(fig)
+
+    # 4️⃣ Cloud vs Rain
+    with col4:
+        st.subheader("☁ Cloud vs Rain")
+        fig, ax = plt.subplots()
+        ax.scatter(df["Cloud3pm"], df["RainTomorrow"].map({"Yes":1,"No":0}))
+        st.pyplot(fig)
+
+# =========================================================
+# 📂 BULK SCANNER
+# =========================================================
+elif menu == "Bulk Scanner":
+
+    st.markdown('<div class="big-card"><h1>📂 Bulk Scanner</h1></div>', unsafe_allow_html=True)
+
+    sample = pd.DataFrame({
+        "Humidity3pm":[70],
+        "Pressure3pm":[1005],
+        "Temp3pm":[28],
+        "WindSpeed3pm":[15],
+        "RainToday":[1],
+        "Cloud3pm":[7]
+    })
+
+    st.subheader("1. Download Samples")
+
+    c1, c2, c3 = st.columns(3)
+    c1.download_button("CSV", sample.to_csv(index=False), "sample.csv")
+
+    sample.to_excel("sample.xlsx", index=False)
+    with open("sample.xlsx","rb") as f:
+        c2.download_button("Excel", f, "sample.xlsx")
+
+    c3.download_button("JSON", sample.to_json(orient="records"), "sample.json")
+
+    st.subheader("2. Upload File")
+
+    file = st.file_uploader("Upload", type=["csv","xlsx","json"])
+
+    if file:
+        if file.name.endswith(".csv"):
+            data = pd.read_csv(file)
+        elif file.name.endswith(".xlsx"):
+            data = pd.read_excel(file)
+        else:
+            data = pd.read_json(file)
+
+        preds = model.predict(data)
+        data["Prediction"] = preds
+        st.dataframe(data)
+
+# =========================================================
+# 📘 ABOUT (MOBILESPHERE STYLE)
+# =========================================================
+else:
+
+    st.markdown("""
+    <div class="big-card">
+        <h1>📘 About RainCast AI</h1>
+        <p>AI-Based Rain Prediction System</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div class="card">
+    RainCast AI is an AI-based system developed to predict rainfall using machine learning techniques.
+    It analyzes Temperature, Humidity, Pressure, Wind Speed, and Cloud Cover.
+    </div>
+    """, unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
 
     with col1:
-        st.write("### Temperature Distribution")
-        fig, ax = plt.subplots()
-        df['Temp3pm'].hist(ax=ax)
-        st.pyplot(fig)
+        st.markdown("""
+        <div class="card">
+        <h3>🎯 Key Features</h3>
+        <ul>
+        <li>Accurate rain prediction</li>
+        <li>Auto + Manual input</li>
+        <li>Interactive dashboard</li>
+        <li>Bulk prediction</li>
+        <li>Modern UI</li>
+        </ul>
+        </div>
+        """, unsafe_allow_html=True)
 
     with col2:
-        st.write("### Humidity vs Rain")
-        fig, ax = plt.subplots()
-        ax.scatter(df['Humidity3pm'], df['RainTomorrow'].map({"Yes":1,"No":0}))
-        st.pyplot(fig)
-
-    # Feature Importance FIXED
-    st.write("### Feature Importance")
-
-    features = [
-        "Humidity3pm",
-        "Pressure3pm",
-        "Temp3pm",
-        "WindSpeed3pm",
-        "RainToday",
-        "Cloud3pm"
-    ]
-
-    importances = model.feature_importances_
-
-    min_len = min(len(features), len(importances))
-    features = features[:min_len]
-    importances = importances[:min_len]
-
-    fig, ax = plt.subplots()
-    ax.barh(features, importances)
-    st.pyplot(fig)
-
-# =========================================================
-# 📂 TAB 3: BULK SCANNER (PRO LEVEL)
-# =========================================================
-with tab3:
-
-    st.subheader("🔍 Bulk Rain Prediction Scanner")
-
-    # ---------------- SAMPLE DOWNLOAD ----------------
-    st.markdown("### 1️⃣ Download Sample Templates")
-
-    sample_data = pd.DataFrame({
-        "Humidity3pm":[70,60],
-        "Pressure3pm":[1005,1012],
-        "Temp3pm":[28,32],
-        "WindSpeed3pm":[15,10],
-        "RainToday":[1,0],
-        "Cloud3pm":[7,3]
-    })
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        csv = sample_data.to_csv(index=False).encode()
-        st.download_button("📄 CSV Sample", csv, "sample.csv")
-
-    with col2:
-        excel_file = "sample.xlsx"
-        sample_data.to_excel(excel_file, index=False)
-        with open(excel_file, "rb") as f:
-            st.download_button("📊 Excel Sample", f, "sample.xlsx")
-
-    with col3:
-        json_data = sample_data.to_json(orient="records")
-        st.download_button("🧾 JSON Sample", json_data, "sample.json")
-
-    st.markdown("---")
-
-    # ---------------- UPLOAD ----------------
-    st.markdown("### 2️⃣ Upload File to Scan")
-
-    file = st.file_uploader(
-        "Upload CSV / Excel / JSON",
-        type=["csv", "xlsx", "json"]
-    )
-
-    if file:
-
-        try:
-            # File type detection
-            if file.name.endswith(".csv"):
-                data = pd.read_csv(file)
-
-            elif file.name.endswith(".xlsx"):
-                data = pd.read_excel(file)
-
-            elif file.name.endswith(".json"):
-                data = pd.read_json(file)
-
-            else:
-                st.error("Unsupported file type")
-                st.stop()
-
-            st.success("✅ File Uploaded")
-            st.dataframe(data)
-
-            # Preprocess
-            if "RainToday" in data.columns:
-                data["RainToday"] = data["RainToday"].replace({"Yes":1,"No":0})
-
-            required_cols = [
-                "Humidity3pm",
-                "Pressure3pm",
-                "Temp3pm",
-                "WindSpeed3pm",
-                "RainToday",
-                "Cloud3pm"
-            ]
-
-            if not all(col in data.columns for col in required_cols):
-                st.error("❌ Missing required columns")
-                st.stop()
-
-            input_data = data[required_cols]
-            input_data = input_data.fillna(input_data.mean())
-
-            # Predict
-            preds = model.predict(input_data)
-            probs = model.predict_proba(input_data)[:,1]
-
-            data["Prediction"] = preds
-            data["Rain Probability (%)"] = (probs * 100).round(2)
-
-            st.success("🎯 Prediction Completed")
-            st.dataframe(data)
-
-            # Download
-            result_csv = data.to_csv(index=False).encode()
-            st.download_button("⬇ Download Results", result_csv, "results.csv")
-
-        except Exception as e:
-            st.error(f"❌ Error: {e}")
-
-# ---------------- FOOTER ----------------
-st.markdown("---")
-st.markdown("Built by Heer Darji | RainCast AI 🌧")
+        st.markdown("""
+        <div class="card">
+        <h3>🛠 Technologies</h3>
+        <ul>
+        <li>Python</li>
+        <li>Pandas & NumPy</li>
+        <li>Machine Learning</li>
+        <li>Streamlit</li>
+        <li>Matplotlib</li>
+        </ul>
+        </div>
+        """, unsafe_allow_html=True)
