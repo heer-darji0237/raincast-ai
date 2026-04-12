@@ -145,7 +145,6 @@ with tab1:
     🌬 Pressure: {pressure} hPa  
     🌬 Wind: {wind} km/h  
     ☁ Cloud: {cloud}  
-    🌧 Rain Today: {"Yes" if rain_today_val else "No"}
     """)
 
     if st.button("🚀 Predict Rain"):
@@ -154,7 +153,7 @@ with tab1:
             "Pressure3pm": [pressure],
             "Temp3pm": [temp],
             "WindSpeed3pm": [wind],
-            "RainToday": [rain_today_val],
+            "RainToday": [0],   # required by model, hidden from UI
             "Cloud3pm": [cloud]
         })
 
